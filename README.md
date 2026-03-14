@@ -6,7 +6,7 @@ Breve CLI para integrar o driver comunitário do Attack Shark com uma extensão 
 
 Pré-requisitos
 
-- Bun (recomendado) ou Node.js (com npx/ts-node).
+- Bun (obrigatório para desenvolvimento, testes e build).
 - gnome-extensions (para habilitar/desabilitar extensões).
 - Acesso de escrita a ~/.local/share para instalar a extensão localmente.
 
@@ -39,16 +39,6 @@ bun install
 
 # adicionar dependência do driver (GitHub)
 bun add github:HarukaYamamoto0/attack-shark-x11-driver
-```
-
-Alternativa manual (com npm):
-
-```bash
-# instalar dependências com npm
-npm install
-
-# adicionar dependência do driver (GitHub)
-npm install github:HarukaYamamoto0/attack-shark-x11-driver
 ```
 
 Instalação do Bun
@@ -93,24 +83,66 @@ bun run ./cli/index.ts polling 500
 # {"ok": true}
 ```
 
-Alternativa para Node.js (ts-node via npx):
+Arquitetura atual da CLI
+
+O código da CLI foi reorganizado em camadas para facilitar manutenção e testes:
+
+- `cli/index.ts`: orquestração da execução, roteamento de comando e códigos de saída.
+- `cli/core/driver.ts`: bootstrap do driver (`Adapter` com fallback para `Wired`).
+- `cli/commands/*.ts`: implementação isolada por comando (`battery`, `dpi`, `polling`).
+- `cli/parsers/*.ts`: parsing/validação de entrada (DPI e polling).
+- `cli/output/*.ts`: serialização JSON, normalização de erros e mapa de exit codes.
+- `cli/types/cli.ts`: tipos compartilhados do runtime e dos handlers.
+
+Essa separação mantém `stdout` reservado para JSON e `stderr` para logs internos.
+
+Testes (co-localizados ao código testado)
+
+Os testes foram movidos para junto dos módulos correspondentes:
+
+- `cli/index.spec.ts` para o entrypoint/orquestração.
+- `cli/parsers/dpi.spec.ts` para `parseDpiInputToStage`.
+- `cli/parsers/polling.spec.ts` para `parsePollingRate`.
+
+Rodar todos os testes:
 
 ```bash
-npx ts-node ./cli/index.ts battery
-npx ts-node ./cli/index.ts dpi 1600
-npx ts-node ./cli/index.ts polling 500
+bun test
 ```
+
+Build e artefatos finais
+
+O fluxo de build agora gera dois artefatos com Bun:
+
+- Binário compilado: `dist/attack-shark-cli`
+- Bundle ESM: `dist/attack-shark-cli.mjs`
+
+Comandos:
+
+```bash
+# limpa dist/
+bun run clean
+
+# gera somente binário compilado
+bun run build:bin
+
+# gera somente bundle ESM
+bun run build:esm
+
+# fluxo completo (clean + binário + ESM)
+bun run compile
+```
+
+O empacotamento da extensão (`bun run package`) continua copiando o binário compilado para `dist/extension/attack-shark-cli`.
 
 CI / Release
 
-Os workflows do GitHub Actions foram atualizados para usar `bun` em vez de `npm`:
+Os workflows do GitHub Actions utilizam Bun:
 
 - Instalação em CI: `bun install --frozen-lockfile`
 - Testes e scripts: `bun run <script>`
 - Empacotamento: `bun pack`
 - Publicação: `bun publish` (utiliza `NPM_TOKEN` para autenticação quando presente)
-
-Se o seu ambiente de desenvolvimento ainda usa `npm`, os comandos equivalentes continuam documentados acima, mas recomenda-se migrar para Bun para reproduzir o ambiente do CI localmente.
 
 Como testar a extensão após a instalação
 

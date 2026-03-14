@@ -7,8 +7,11 @@
   "scripts": {
     "test-session": "dbus-run-session gnome-shell --devkit --wayland   ",
     "cli": "bun run ./cli/index.ts",
+    "test": "bun test",
     "clean": "rm -rf dist",
-    "compile": "bun build --target bun --compile cli/index.ts && mkdir -p dist && mv index dist/attack-shark-cli && chmod +x dist/attack-shark-cli",
+    "build:bin": "mkdir -p dist && bun build --target bun --compile --outfile dist/attack-shark-cli cli/index.ts && chmod +x dist/attack-shark-cli",
+    "build:esm": "mkdir -p dist && bun build --target bun --format esm --outfile dist/attack-shark-cli.mjs cli/index.ts",
+    "compile": "bun run clean && bun run build:bin && bun run build:esm",
     "copy-extension": "cp -r extension dist/extension",
     "copy-cli": "cp -r dist/attack-shark-cli dist/extension/attack-shark-cli",
     "package": "bun clean && bun compile && bun copy-extension && bun copy-cli",

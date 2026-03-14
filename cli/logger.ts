@@ -1,7 +1,11 @@
-// Silent logger that writes to stderr for diagnostics so stdout remains clean JSON
+const writeStderr = (level: string, args: unknown[]): void => {
+  Bun.stderr.write(`[${level}] ${args.map(String).join(' ')}\n`);
+};
+
+// Silent logger keeps stdout reserved for JSON responses.
 export const silentLogger = {
-  debug: (...args: any[]) => console.error('[debug]', ...args),
-  info: (...args: any[]) => console.error('[info]', ...args),
-  warn: (...args: any[]) => console.error('[warn]', ...args),
-  error: (...args: any[]) => console.error('[error]', ...args),
+  debug: (...args: unknown[]) => writeStderr('debug', args),
+  info: (...args: unknown[]) => writeStderr('info', args),
+  warn: (...args: unknown[]) => writeStderr('warn', args),
+  error: (...args: unknown[]) => writeStderr('error', args),
 };
