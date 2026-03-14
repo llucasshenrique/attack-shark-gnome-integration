@@ -1,4 +1,4 @@
-import { vi, describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { mock, describe, test, expect, beforeEach, afterEach, vi, spyOn } from 'bun:test';
 import { main as cliMain } from '../index';
 
 // Mocks
@@ -10,7 +10,7 @@ const mockDriver = {
   setPollingRate: vi.fn(),
 };
 
-vi.mock('attack-shark-x11-driver', () => ({
+mock.module('attack-shark-x11-driver/src', () => ({
   AttackSharkX11: vi.fn(() => mockDriver),
   ConnectionMode: { Adapter: 'adapter', Wired: 'wired' },
   Rate: { powerSaving: 'ps', office: 'office', gaming: 'gaming', eSports: 'esports' },
@@ -31,16 +31,16 @@ describe('CLI', () => {
       mockStdout(chunk);
       return true;
     };
-    (global as any).__originalStdoutWrite = originalWrite;
+    (globalThis as any).__originalStdoutWrite = originalWrite;
     vi.resetAllMocks();
   });
 
   afterEach(() => {
     process.argv = originalArgv;
     // restore stdout
-    if ((global as any).__originalStdoutWrite) {
-      (process.stdout as any).write = (global as any).__originalStdoutWrite;
-      delete (global as any).__originalStdoutWrite;
+    if ((globalThis as any).__originalStdoutWrite) {
+      (process.stdout as any).write = (globalThis as any).__originalStdoutWrite;
+      delete (globalThis as any).__originalStdoutWrite;
     }
   });
 

@@ -4,10 +4,6 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
-  "scripts": {
-    "battery": "bun run cli/index.ts battery",
-    "test": "vitest"
-  },
   "devDependencies": {
     "vitest": "^1.0.0",
     "@types/node": "^20.0.0",
