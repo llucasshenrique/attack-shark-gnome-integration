@@ -5,7 +5,7 @@
     "": {
       "name": "cli",
       "dependencies": {
-        "attack-shark-x11-driver": "github:HarukaYamamoto0/attack-shark-x11-driver",
+        "attack-shark-x11-driver": "github:HarukaYamamoto0/attack-shark-x11-driver#f0bc5d32a27bfb9604ff7e455d74fef81fad70ef",
       },
       "devDependencies": {
         "@types/node": "^20.0.0",

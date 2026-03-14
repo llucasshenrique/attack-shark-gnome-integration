@@ -4,23 +4,99 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to release (overrides push tag)'
-        required: true
 
 concurrency:
-  # Prevent race conditions between push(tag) and release events for the same version.
-  group: release-${{ github.event.release.tag_name || github.ref_name || github.event.inputs.tag || github.sha }}
+  group: release-${{ github.ref_name || github.sha }}
   cancel-in-progress: false
 
 jobs:
+  build-packages:
+    name: Build DEB/RPM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build CLI artifacts
+        run: bun run compile
+
+      - name: Build DEB package
+        run: sh ./scripts/package-deb.sh
+
+      - name: Build RPM package
+        run: sh ./scripts/package-rpm.sh
+
+      - name: Upload packages artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: dist/packages/*
+          if-no-files-found: error
+
+  test-packages:
+    name: Test Packages (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: build-packages
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: debian-12
+            dockerfile: .docker/Dockerfile.deb
+            base_image: debian:12
+          - name: ubuntu-22-04
+            dockerfile: .docker/Dockerfile.deb
+            base_image: ubuntu:22.04
+          - name: ubuntu-24-04
+            dockerfile: .docker/Dockerfile.deb
+            base_image: ubuntu:24.04
+          - name: fedora-41
+            dockerfile: .docker/Dockerfile.rpm
+            base_image: fedora:41
+          - name: fedora-43
+            dockerfile: .docker/Dockerfile.rpm
+            base_image: fedora:43
+          - name: ubi-9
+            dockerfile: .docker/Dockerfile.rpm
+            base_image: registry.access.redhat.com/ubi9/ubi
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+          path: dist/packages
+
+      - name: Build and run container test
+        run: |
+          docker build \
+            --build-arg BASE_IMAGE=${{ matrix.base_image }} \
+            -f ${{ matrix.dockerfile }} \
+            -t attack-shark-cli-test:${{ matrix.name }} \
+            .
+
   release:
     name: Release
     runs-on: ubuntu-latest
+    needs:
+      - build-packages
+      - test-packages
     permissions:
       contents: write
       packages: write
@@ -31,7 +107,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Node.js
+      - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -56,17 +132,25 @@ jobs:
           bun run copy-cli || true
           ls -la dist || true
 
-      - name: Build Linux packages (DEB/RPM)
+      - name: Download Linux packages artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+          path: dist/packages
+
+      - name: Ensure release exists
         run: |
-          sh ./scripts/package-deb.sh
-          sh ./scripts/package-rpm.sh
-          ls -la dist/packages || true
+          set -euo pipefail
+          TAG=${{ github.ref_name }}
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare and zip release artifacts
         run: |
           set -euo pipefail
 
-          RELEASE_TAG=${{ github.ref_name || github.event.inputs.tag || 'release' }}
+          RELEASE_TAG=${{ github.ref_name }}
           EXT_UUID=$(bun -e "const meta = JSON.parse(await Bun.file('extension/metadata.json').text()); console.log(meta.uuid)")
 
           # Extension package: folder name must match GNOME extension UUID.
@@ -162,9 +246,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          TAG=${{ github.event.release.tag_name || github.ref_name || github.event.inputs.tag }}
-          EXT_ASSET=./dist/attack-shark-extension-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip
-          CLI_ASSET=./dist/attack-shark-cli-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip
+          TAG=${{ github.ref_name }}
+          EXT_ASSET=./dist/attack-shark-extension-${{ github.ref_name }}.zip
+          CLI_ASSET=./dist/attack-shark-cli-${{ github.ref_name }}.zip
           DEB_ASSET=$(ls -1 ./dist/packages/*.deb | head -n1)
           RPM_ASSET=$(ls -1 ./dist/packages/*.rpm | head -n1)
 
