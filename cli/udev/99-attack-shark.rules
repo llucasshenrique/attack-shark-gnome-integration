@@ -1,0 +1,5 @@
+# udev rules for AttackShark dongle
+# Copy this file to /etc/udev/rules.d/99-attack-shark.rules
+# Allows users in group `plugdev` to access the USB device (safer than 0666)
+SUBSYSTEM=="usb", ATTR{idVendor}=="1d57", ATTR{idProduct}=="fa60", MODE="0660", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="1d57", ATTR{idProduct}=="fa55", MODE="0660", GROUP="plugdev"

@@ -1,115 +1,136 @@
-import { AttackSharkX11, ConnectionMode, Button, Rate, DpiBuilder } from 'attack-shark-driver';
-import type { Logger } from 'attack-shark-driver';
+import { type StageIndex, AttackSharkX11, ConnectionMode, Rate, DpiBuilder } from 'attack-shark-x11-driver/src';
+import { fileURLToPath } from 'url';
 
-// Silent logger so we only output our JSON
-const silentLogger: Logger = {
-  debug() {},
-  info() {},
-  warn() {},
-  error() {}
+const isBun = typeof (globalThis as any).Bun !== 'undefined' || !!process.env.BUN_ENV;
+
+// Silent logger that writes to stderr for diagnostics so stdout remains clean JSON
+const silentLogger = {
+  debug: (...args: any[]) => console.error('[debug]', ...args),
+  info: (...args: any[]) => console.error('[info]', ...args),
+  warn: (...args: any[]) => console.error('[warn]', ...args),
+  error: (...args: any[]) => console.error('[error]', ...args),
 };
 
-async function main() {
+const writeJson = (obj: any) => {
+  try {
+    process.stdout.write(JSON.stringify(obj) + '\n');
+  } catch (e) {
+    process.stdout.write(JSON.stringify({ error: 'Internal serialization error' }) + '\n');
+  }
+};
+
+export async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
   if (!command) {
-    console.log(JSON.stringify({ error: 'No command specified. Usage: battery | dpi <stage> | polling <rate>' }));
+    writeJson({ error: 'No command specified. Usage: battery | dpi <stage> | polling <rate>' });
     process.exit(1);
   }
 
-  let driver: AttackSharkX11;
+  let driver: any;
+
   try {
-    // Try Adapter first, then Wired if Adapter is not found
     try {
       driver = new AttackSharkX11({ connectionMode: ConnectionMode.Adapter, logger: silentLogger });
-    } catch (adapterErr) {
+    } catch (_e) {
       driver = new AttackSharkX11({ connectionMode: ConnectionMode.Wired, logger: silentLogger });
     }
   } catch (err: any) {
-    console.log(JSON.stringify({ error: `Device not found or not connected: ${err.message}` }));
-    process.exit(1);
+    // Device not found
+    writeJson({ error: 'Device not connected' });
+    process.exit(2);
   }
 
   try {
     await driver.open();
   } catch (err: any) {
-    if (err.message?.includes('claim') || err.message?.includes('LIBUSB_ERROR_ACCESS')) {
-      console.log(JSON.stringify({ error: `Permission denied. Ensure udev rules are set. Details: ${err.message}` }));
+    const msg = String(err?.message ?? err).toLowerCase();
+    if (msg.includes('claim') || msg.includes('libusb_error_access') || msg.includes('permission')) {
+      writeJson({ error: 'Permission denied' });
     } else {
-      console.log(JSON.stringify({ error: `Failed to open device: ${err.message}` }));
+      writeJson({ error: String(err?.message ?? 'Failed to open device') });
     }
-    process.exit(1);
+    process.exit(3);
   }
 
   try {
     switch (command) {
       case 'battery': {
-        const battery = await driver.getBatteryLevel(3000);
-        console.log(JSON.stringify({ level: battery }));
+        const level = await driver.getBatteryLevel?.(3000);
+        writeJson({ level });
         break;
       }
 
       case 'dpi': {
         const stageStr = args[1];
         if (!stageStr) {
-          console.log(JSON.stringify({ error: 'DPI stage undefined. Usage: dpi <stage>' }));
-          break;
+          writeJson({ error: 'DPI stage undefined. Usage: dpi <stage>' });
+          process.exit(4);
         }
-        
-        const stage = parseInt(stageStr, 10);
-        // Ensure stage is between 0 and 5
-        if (stage < 0 || stage > 5 || isNaN(stage)) {
-          console.log(JSON.stringify({ error: 'DPI stage must be between 0 and 5' }));
-          break;
+        const stage: StageIndex = parseInt(stageStr, 10) as StageIndex;
+        if (isNaN(stage) || stage < 0 || stage > 5) {
+          writeJson({ error: 'DPI stage must be between 0 and 5' });
+          process.exit(4);
         }
-
         const dpiBuilder = new DpiBuilder({ activeStage: stage });
         await driver.setDpi(dpiBuilder);
-        console.log(JSON.stringify({ success: true, stage }));
+        writeJson({ ok: true });
         break;
       }
 
       case 'polling': {
         const rateStr = args[1];
         if (!rateStr) {
-          console.log(JSON.stringify({ error: 'Polling rate undefined. Usage: polling <125|250|500|1000>' }));
-          break;
+          writeJson({ error: 'Polling rate undefined. Usage: polling <125|250|500|1000>' });
+          process.exit(4);
         }
-
         const rateNum = parseInt(rateStr, 10);
-        let rateEnum: Rate;
-        
-        if (rateNum === 125) rateEnum = Rate.powerSaving;
-        else if (rateNum === 250) rateEnum = Rate.office;
-        else if (rateNum === 500) rateEnum = Rate.gaming;
-        else if (rateNum === 1000) rateEnum = Rate.eSports;
-        else {
-          console.log(JSON.stringify({ error: 'Invalid rate. Must be 125, 250, 500, or 1000.' }));
-          break;
+        let rateEnum: any = null;
+        if (rateNum === 125) rateEnum = Rate?.powerSaving;
+        else if (rateNum === 250) rateEnum = Rate?.office;
+        else if (rateNum === 500) rateEnum = Rate?.gaming;
+        else if (rateNum === 1000) rateEnum = Rate?.eSports;
+        if (!rateEnum) {
+          writeJson({ error: 'Invalid rate. Must be 125, 250, 500, or 1000.' });
+          process.exit(4);
         }
-
         await driver.setPollingRate(rateEnum);
-        console.log(JSON.stringify({ success: true, rate: rateNum }));
+        writeJson({ ok: true });
         break;
       }
 
       default:
-        console.log(JSON.stringify({ error: `Unknown command: ${command}` }));
-        break;
+        writeJson({ error: `Unknown command: ${command}` });
+        process.exit(1);
     }
   } catch (err: any) {
-    if (err.name === 'TimeoutError') {
-      console.log(JSON.stringify({ error: 'Timeout waiting for device response. Is the mouse sleeping or wired?' }));
-    } else {
-      console.log(JSON.stringify({ error: `Command execution failed: ${err.message}` }));
+    const name = err?.name;
+    if (name === 'TimeoutError') {
+      writeJson({ error: 'Timeout waiting for device response' });
+      process.exit(5);
     }
+    writeJson({ error: String(err?.message ?? 'Command execution failed') });
+    process.exit(6);
   } finally {
-    await driver.close();
+    try {
+      if (driver && driver.close) await driver.close();
+    } catch (_e) {
+      // ignore
+    }
   }
 }
 
-main().catch(err => {
-  console.log(JSON.stringify({ error: `Unhandled exception: ${err.message}` }));
-  process.exit(1);
-});
+// Execute when run directly
+try {
+  const entry = fileURLToPath(import.meta.url);
+  const invoked = process.argv[1] || '';
+  if (invoked === entry || invoked.endsWith('/index.ts') || invoked.endsWith('/index.js')) {
+    main().catch(err => {
+      writeJson({ error: String(err?.message ?? 'Unhandled exception') });
+      process.exit(1);
+    });
+  }
+} catch (e) {
+  // ignore
+}

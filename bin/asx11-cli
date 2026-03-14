@@ -1,0 +1,15 @@
+#!/bin/sh
+# Shim gerado por install.sh. Decide em tempo de execução entre bun e node.
+if command -v bun >/dev/null 2>&1; then
+  exec bun run -- ./cli/index.ts "$@"
+elif command -v node >/dev/null 2>&1; then
+  # Se houver um build para JS, tentamos executar; caso contrário, instruímos o usuário.
+  if [ -f "./cli/index.js" ]; then
+    exec node ./cli/index.js "$@"
+  else
+    exec node -e 'console.error("Nenhum bun encontrado e não existe ./cli/index.js. Rode com bun ou construa o JS."); process.exit(127)'
+  fi
+else
+  echo "Nenhum runtime (bun ou node) disponível." 1>&2
+  exit 127
+fi

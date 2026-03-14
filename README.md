@@ -1,102 +1,102 @@
 # Attack Shark X11 GNOME Integration CLI
 
-This CLI wraps the `attack-shark-driver` so it can be invoked by the GNOME Shell Extension to read battery and set DPI/Polling rates.
+Resumo
 
-## Setup and Permissions
+Breve CLI para integrar o driver comunitário do Attack Shark com uma extensão do GNOME Shell: lê nível de bateria e ajusta DPI/polling para o dongle.
 
-Since the driver communicates using WebUSB/node-usb, you must add a `udev` rule to allow your user to access the device without `sudo`.
+Pré-requisitos
 
-1. Create a file `/etc/udev/rules.d/99-attackshark.rules` with the following content (safer default: MODE=0660 and group plugdev):
-```udev
-SUBSYSTEM=="usb", ATTR{idVendor}=="1d57", ATTR{idProduct}=="fa60", MODE="0660", GROUP="plugdev"
-SUBSYSTEM=="usb", ATTR{idVendor}=="1d57", ATTR{idProduct}=="fa55", MODE="0660", GROUP="plugdev"
-```
-*(Ensure your user is in the `plugdev` group and prefer MODE="0660" for less permissive access.)*
+- Bun ou Node.js (com npx/ts-node).
+- gnome-extensions (para habilitar/desabilitar extensões).
+- Acesso de escrita a ~/.local/share para instalar a extensão localmente.
 
-2. Reload the udev rules and trigger events:
-```bash
-sudo cp cli/udev/99-attack-shark.rules /etc/udev/rules.d/99-attack-shark.rules
-sudo udevadm control --reload-rules && sudo udevadm trigger
-```
+Instalação rápida
 
-3. Add your user to plugdev if needed:
-```bash
-sudo usermod -aG plugdev $USER
-# then log out and log in, or run `newgrp plugdev` to activate immediately
-```
-
-4. Verify the device node permissions (replace BUS/DEV with values from lsusb):
-```bash
-ls -l /dev/bus/usb/BUS/DEV
-# Example: ls -l /dev/bus/usb/001/015
-```
-
-5. Test the CLI (reconnect the dongle first):
-```bash
-bun run index.ts battery
-```
-
-## Usage
+Recomendado (script):
 
 ```bash
-bun run index.ts battery
-bun run index.ts dpi <0-5>
-bun run index.ts polling <125|250|500|1000>
+./install.sh
 ```
 
-All commands output strict JSON.
-
-## Dependência do driver comunitário
-
-Este projeto usa o driver comunitário `attack-shark-x11-driver` hospedado no GitHub. A dependência foi adicionada no campo `dependencies` apontando para o repositório Git.
-
-Instalação automática (recomendado, usando Bun):
+Alternativa manual:
 
 ```bash
+# instalar dependências do projeto
+bun install        # ou
+npm install
+
+# adicionar dependência do driver (GitHub)
 bun add github:HarukaYamamoto0/attack-shark-x11-driver
-```
-
-Isto atualizará automaticamente `package.json` e `bun.lock`.
-
-Instalação manual alternativa (npm/yarn):
-
-- Usando npm:
-
-```bash
+# alternativa npm
 npm install github:HarukaYamamoto0/attack-shark-x11-driver
 ```
 
-Link local para desenvolvimento
+Aplicar regras udev
 
-- Com Bun (no diretório do pacote local):
-
-```bash
-# no diretório do attack-shark-x11-driver local
-bun link
-# no diretório deste projeto
-bun link attack-shark-x11-driver
-```
-
-- Com npm/yarn:
+O arquivo de regras está em [`cli/udev/99-attack-shark.rules`](cli/udev/99-attack-shark.rules:1). Para copiar e aplicar as regras execute:
 
 ```bash
-# no diretório do attack-shark-x11-driver local
-npm link
-# no diretório deste projeto
-npm link attack-shark-x11-driver
+sudo cp cli/udev/99-attack-shark.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Import no código
+Pode ser necessário reconectar o dispositivo (desconectar/reconectar o dongle) para que a nova permissão seja aplicada.
 
-Certifique-se de usar a importação padrão no código da CLI:
+Recarregar o GNOME Shell após instalar a extensão
 
-```ts
-import * as Driver from "attack-shark-x11-driver"
+- Wayland: faça Log out e depois Log in. O atalho "r" não recarrega o GNOME Shell no Wayland porque o comando de recarga via Alt+F2 não está disponível no compositor Wayland.
+
+- X11: pressione Alt+F2, digite `r` e pressione Enter — isso recarrega o GNOME Shell imediatamente.
+
+Exemplos de uso da CLI (saída JSON esperada)
+
+```bash
+# com Bun
+bun run ./cli/index.ts battery
+# Exemplo de saída esperada:
+# {"level": 80}
+
+bun run ./cli/index.ts dpi 1600
+# Exemplo de saída esperada:
+# {"ok": true}
+
+bun run ./cli/index.ts polling 500
+# Exemplo de saída esperada:
+# {"ok": true}
 ```
 
-Isto funcionará com a entrada especificada em `package.json`.
+Alternativa para Node.js (ts-node via npx):
 
-## Observações
+```bash
+npx ts-node ./cli/index.ts battery
+npx ts-node ./cli/index.ts dpi 1600
+npx ts-node ./cli/index.ts polling 500
+```
 
-- Se não houver Bun no ambiente, use os comandos npm acima.
-- Commit foi realizado com a mensagem: `chore: add attack-shark-x11-driver dependency via git`.
+Como testar a extensão após a instalação
+
+```bash
+# Habilitar a extensão instalada localmente
+gnome-extensions enable attack-shark-x11@llucasshenrique
+
+# Verificar logs do GNOME Shell em tempo real
+journalctl --user -f /usr/bin/gnome-shell
+```
+
+- Abra o menu de status (system status area) e verifique se o ícone/label de bateria do dongle aparece.
+- Teste ajustes de DPI e polling via interface da extensão e confirme mudanças no dispositivo.
+
+Notas sobre permissões e segurança
+
+- A CLI evita rodar como root; o design pressupõe acesso ao dispositivo via regras udev para não exigir sudo.
+- As regras udev permitem acesso sem sudo para o usuário (MODE/GRUPO configurados no arquivo de regras).
+- Erros de permissão geram resposta JSON no formato:
+
+```json
+{"error":"Permission denied"}
+```
+
+Links e referências rápidas
+
+- Regras udev: [`cli/udev/99-attack-shark.rules`](cli/udev/99-attack-shark.rules:1)
+- Documentação udev para este projeto: [`cli/udev/README.md`](cli/udev/README.md:1)
+- Script de instalação: [`install.sh`](install.sh:1)
