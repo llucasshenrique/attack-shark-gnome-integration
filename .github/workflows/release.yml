@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -40,30 +42,33 @@ jobs:
             echo "No build script configured; skipping."
           fi
 
-      - name: Create package (npm pack)
-        run: bun pack
-
-      - name: Publish to npm
-        if: ${{ env.NPM_TOKEN != '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
+      - name: Build extension artifacts
         run: |
-          bun publish --access public
+          # build CLI binary + ESM bundle and copy extension into dist/
+          bun run clean || true
+          bun run compile
+          bun run copy-extension
+          bun run copy-cli || true
+          ls -la dist || true
 
-      - name: Create GitHub Release and upload asset
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-package
-          path: ./package-*.tgz
+      - name: Zip extension artifact
+        run: |
+          cd dist
+          zip -r attack-shark-extension-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip extension
+          ls -la *.zip
+
+      - name: Authenticate GitHub CLI
+        run: |
+          echo "Authenticating gh..."
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Optional: run semantic-release or generate changelog here
-      # - name: semantic-release
-      #   uses: cycjimmy/semantic-release-action@v2
-      #   with:
-      #     extra_plugins: |
-      #       @semantic-release/changelog
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #     NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Upload extension ZIP via gh
+        run: |
+          TAG=${{ github.event.release.tag_name || github.ref_name || github.event.inputs.tag }}
+          ASSET=./dist/attack-shark-extension-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip
+          echo "Uploading $ASSET to release $TAG"
+          gh release upload "$TAG" "$ASSET" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
