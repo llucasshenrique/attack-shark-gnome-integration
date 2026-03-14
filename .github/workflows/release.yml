@@ -149,10 +149,46 @@ jobs:
 
       - name: Upload release ZIPs via gh
         run: |
+          set -euo pipefail
+
           TAG=${{ github.event.release.tag_name || github.ref_name || github.event.inputs.tag }}
           EXT_ASSET=./dist/attack-shark-extension-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip
           CLI_ASSET=./dist/attack-shark-cli-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip
-          echo "Uploading $EXT_ASSET and $CLI_ASSET to release $TAG"
-          gh release upload "$TAG" "$EXT_ASSET" "$CLI_ASSET" --clobber
+
+          echo "Preparing upload for $EXT_ASSET and $CLI_ASSET to release $TAG"
+
+          mapfile -t EXISTING_ASSETS < <(gh release view "$TAG" --json assets --jq '.assets[].name' || true)
+
+          has_asset() {
+            local asset_name="$1"
+            printf '%s\n' "${EXISTING_ASSETS[@]}" | grep -Fxq "$asset_name"
+          }
+
+          upload_with_retry() {
+            local asset_path="$1"
+            local asset_name
+            asset_name=$(basename "$asset_path")
+
+            if has_asset "$asset_name"; then
+              echo "Asset already exists, skipping: $asset_name"
+              return 0
+            fi
+
+            for attempt in 1 2 3 4 5; do
+              if gh release upload "$TAG" "$asset_path" --clobber; then
+                echo "Uploaded: $asset_name"
+                return 0
+              fi
+
+              echo "Upload failed for $asset_name (attempt $attempt/5). Retrying..."
+              sleep $((attempt * 3))
+            done
+
+            echo "Failed to upload $asset_name after retries."
+            return 1
+          }
+
+          upload_with_retry "$EXT_ASSET"
+          upload_with_retry "$CLI_ASSET"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
