@@ -1,28 +1,158 @@
-# Attack Shark X11 GNOME Integration CLI
+# Attack Shark X11 GNOME Integration
 
-Resumo
+[![CI](https://github.com/llucasshenrique/attack-shark-gnome-integration/actions/workflows/ci.yml/badge.svg)](https://github.com/llucasshenrique/attack-shark-gnome-integration/actions/workflows/ci.yml)
+[![Release](https://github.com/llucasshenrique/attack-shark-gnome-integration/actions/workflows/release.yml/badge.svg)](https://github.com/llucasshenrique/attack-shark-gnome-integration/actions/workflows/release.yml)
+[![GNOME 45-49](https://img.shields.io/badge/GNOME-45--49-4A86CF?logo=gnome&logoColor=white)](extension/metadata.json)
+[![Bun](https://img.shields.io/badge/Bun-required-F9F1E1?logo=bun&logoColor=000)](https://bun.sh)
+[![Linux Packages](https://img.shields.io/badge/packages-deb%20%7C%20rpm-2ea44f)](scripts/package-deb.sh)
 
-Breve CLI para integrar o driver comunitário do Attack Shark com uma extensão do GNOME Shell: lê nível de bateria e ajusta DPI/polling para o dongle.
+CLI para integrar o driver comunitario do Attack Shark X11 ([attack-shark-x11-driver](https://github.com/HarukaYamamoto0/attack-shark-x11-driver)) com uma extensao GNOME Shell.
 
-Pré-requisitos
+Funcionalidades principais:
 
-- Bun (obrigatório para desenvolvimento, testes e build).
-- gnome-extensions (para habilitar/desabilitar extensões).
-- Acesso de escrita a ~/.local/share para instalar a extensão localmente.
+- Ler bateria do dongle (`battery`)
+- Alterar DPI (`dpi`)
+- Alterar polling rate (`polling`)
+- Exibir controles na barra superior do GNOME
 
-Nota: os workflows de CI e release do repositório utilizam `bun` para instalar dependências, executar testes e empacotar/publicar pacotes.
+## Uso dos utilitarios (usuario final)
 
-Instalação rápida
+### Pre-requisitos de uso
 
-Recomendado (script):
+- Linux
+- GNOME Shell (para usar a extensao)
+- `gnome-extensions` (recomendado para habilitar/desabilitar extensao via CLI)
+
+### Instalacao rapida (CLI + extensao GNOME)
+
+Fluxo recomendado:
 
 ```bash
-./install.sh
+bun install --frozen-lockfile
+bun run package
 ```
 
-Pacotes Linux (.deb e .rpm)
+Esse fluxo:
 
-Esta etapa prepara a separação entre extensão e CLI. A CLI pode ser empacotada de forma independente em `.deb` e `.rpm`.
+- Compila a CLI
+- Copia a extensao para `dist/extension`
+- Embute `dist/attack-shark-cli` em `dist/extension/attack-shark-cli`
+- Instala a extensao localmente via `scripts/install-extension.sh` (hook `postpackage`)
+
+### Instalar e usar somente a CLI
+
+Uso direto com Bun (desenvolvimento/local):
+
+```bash
+bun install --frozen-lockfile
+bun run ./cli/index.ts battery
+bun run ./cli/index.ts dpi 1600
+bun run ./cli/index.ts polling 500
+```
+
+Saida JSON esperada:
+
+```json
+{"level":80}
+{"ok":true}
+```
+
+Uso de CLI instalada por pacote (`/usr/bin/attack-shark-cli`):
+
+```bash
+attack-shark-cli battery
+attack-shark-cli dpi 22000
+attack-shark-cli polling 1000
+```
+
+### Instalar e usar somente a extensao GNOME
+
+Fluxo recomendado (empacota e instala a extensao localmente):
+
+```bash
+bun run package
+```
+
+Esse fluxo:
+
+- Gera artefatos em `dist/`
+- Copia a extensao para `dist/extension`
+- Copia `dist/attack-shark-cli` para `dist/extension/attack-shark-cli`
+- Executa `scripts/install-extension.sh` no `postpackage`
+
+Instalacao manual da extensao:
+
+```bash
+XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+mkdir -p "$XDG_DATA_HOME/gnome-shell/extensions/attack-shark-x11@llucasshenrique"
+cp -r extension/. "$XDG_DATA_HOME/gnome-shell/extensions/attack-shark-x11@llucasshenrique/"
+gnome-extensions enable attack-shark-x11@llucasshenrique
+```
+
+### Como usar a extensao GNOME
+
+Depois de habilitar a extensao:
+
+- Abra o menu de status na barra superior
+- Veja o nivel de bateria
+- Altere DPI e polling diretamente no menu
+
+Log do GNOME Shell:
+
+```bash
+journalctl --user -f /usr/bin/gnome-shell
+```
+
+### udev e permissoes
+
+Arquivo de regra: [`cli/udev/99-attack-shark.rules`](cli/udev/99-attack-shark.rules)
+
+Aplicar manualmente:
+
+```bash
+sudo cp cli/udev/99-attack-shark.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+Pode ser necessario reconectar o dongle para aplicar as novas permissoes.
+
+### Recarregar GNOME Shell
+
+- Wayland: fazer logout/login
+- X11: `Alt+F2`, digitar `r`, pressionar Enter
+
+## Desenvolvimento
+
+### Pre-requisitos de desenvolvimento
+
+- Bun (obrigatorio para testes, build e empacotamento)
+
+Instalacao do Bun (oficial):
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+### Testes
+
+```bash
+bun test
+```
+
+### Build local
+
+```bash
+bun run compile
+./dist/attack-shark-cli battery
+```
+
+Artefatos gerados:
+
+- `dist/attack-shark-cli` (binario)
+- `dist/attack-shark-cli.mjs` (bundle ESM)
+
+### Empacotamento Linux (.deb/.rpm)
 
 Gerar pacotes:
 
@@ -30,172 +160,45 @@ Gerar pacotes:
 bun run package:linux
 ```
 
-Saída esperada:
+Saida esperada:
 
 - `dist/packages/*.deb`
 - `dist/packages/*.rpm`
 
-Testar instalação em containers (Debian 12, Ubuntu 22.04/24.04, Fedora 41, UBI 9):
+Instalacao dos pacotes coloca:
+
+- Binario em `/usr/bin/attack-shark-cli`
+- Regra udev em `/etc/udev/rules.d/99-attack-shark.rules`
+
+Validar instalacao dos pacotes em containers:
 
 ```bash
 bun run test:packages:containers
 ```
 
-Notas:
+Matriz atual de teste: Debian 12, Ubuntu 22.04/24.04, Fedora 41/43 e UBI 9.
 
-- O empacotamento usa `nfpm` (local, se instalado) com fallback para `ghcr.io/goreleaser/nfpm` via Docker.
-- O pacote instala o binário em `/usr/bin/attack-shark-cli` e a regra udev em `/etc/udev/rules.d/99-attack-shark.rules`.
-- O startup da CLI empacotada foi estabilizado para ambientes limpos (sem crash em `attack-shark-cli` sem argumentos); comandos que acessam dispositivo continuam dependendo do runtime nativo USB disponível no sistema.
-
-Fluxo empacotado (build + instalação da extensão local):
+### Comandos uteis
 
 ```bash
-bun run package
-```
-
-Esse comando gera os artefatos em `dist/` e, no hook `postpackage`, executa
-`scripts/install-extension.sh` para instalar `dist/extension` em
-`~/.local/share/gnome-shell/extensions/attack-shark-x11@llucasshenrique`
-(ou `${XDG_DATA_HOME}/gnome-shell/extensions/...` quando definido).
-
-Alternativa manual (com Bun):
-
-```bash
-# instalar dependências do projeto
-bun install
-
-# adicionar dependência do driver (GitHub)
-bun add github:HarukaYamamoto0/attack-shark-x11-driver
-```
-
-Instalação do Bun
-
-```bash
-# instalação rápida (Linux/macOS) - oficial
-curl -fsSL https://bun.sh/install | bash
-
-# ou use distribuíções / gerenciadores de pacotes quando disponíveis
-```
-
-Aplicar regras udev
-
-O arquivo de regras está em [`cli/udev/99-attack-shark.rules`](cli/udev/99-attack-shark.rules:1). Para copiar e aplicar as regras execute:
-
-```bash
-sudo cp cli/udev/99-attack-shark.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
-```
-
-Pode ser necessário reconectar o dispositivo (desconectar/reconectar o dongle) para que a nova permissão seja aplicada.
-
-Recarregar o GNOME Shell após instalar a extensão
-
-- Wayland: faça Log out e depois Log in. O atalho "r" não recarrega o GNOME Shell no Wayland porque o comando de recarga via Alt+F2 não está disponível no compositor Wayland.
-
-- X11: pressione Alt+F2, digite `r` e pressione Enter — isso recarrega o GNOME Shell imediatamente.
-
-Exemplos de uso da CLI (saída JSON esperada)
-
-```bash
-# com Bun
-bun run ./cli/index.ts battery
-# Exemplo de saída esperada:
-# {"level": 80}
-
-bun run ./cli/index.ts dpi 1600
-# Exemplo de saída esperada:
-# {"ok": true}
-
-bun run ./cli/index.ts polling 500
-# Exemplo de saída esperada:
-# {"ok": true}
-```
-
-Arquitetura atual da CLI
-
-O código da CLI foi reorganizado em camadas para facilitar manutenção e testes:
-
-- `cli/index.ts`: orquestração da execução, roteamento de comando e códigos de saída.
-- `cli/core/driver.ts`: bootstrap do driver (`Adapter` com fallback para `Wired`).
-- `cli/commands/*.ts`: implementação isolada por comando (`battery`, `dpi`, `polling`).
-- `cli/parsers/*.ts`: parsing/validação de entrada (DPI e polling).
-- `cli/output/*.ts`: serialização JSON, normalização de erros e mapa de exit codes.
-- `cli/types/cli.ts`: tipos compartilhados do runtime e dos handlers.
-
-Essa separação mantém `stdout` reservado para JSON e `stderr` para logs internos.
-
-Testes (co-localizados ao código testado)
-
-Os testes foram movidos para junto dos módulos correspondentes:
-
-- `cli/index.spec.ts` para o entrypoint/orquestração.
-- `cli/parsers/dpi.spec.ts` para `parseDpiInputToStage`.
-- `cli/parsers/polling.spec.ts` para `parsePollingRate`.
-
-Rodar todos os testes:
-
-```bash
-bun test
-```
-
-Build e artefatos finais
-
-O fluxo de build agora gera dois artefatos com Bun:
-
-- Binário compilado: `dist/attack-shark-cli`
-- Bundle ESM: `dist/attack-shark-cli.mjs`
-
-Comandos:
-
-```bash
-# limpa dist/
 bun run clean
-
-# gera somente binário compilado
 bun run build:bin
-
-# gera somente bundle ESM
 bun run build:esm
-
-# fluxo completo (clean + binário + ESM)
 bun run compile
 ```
 
-O empacotamento da extensão (`bun run package`) continua copiando o binário compilado para `dist/extension/attack-shark-cli`.
+### Arquitetura da CLI
 
-CI / Release
+- `cli/index.ts` orquestracao e codigos de saida
+- `cli/core/driver.ts` bootstrap do driver
+- `cli/commands/*.ts` comandos (`battery`, `dpi`, `polling`)
+- `cli/parsers/*.ts` validacao de entrada
+- `cli/output/*.ts` serializacao JSON e normalizacao de erros
+- `cli/types/cli.ts` tipos compartilhados
 
-Os workflows do GitHub Actions utilizam Bun:
+## Referencias
 
-- Instalação em CI: `bun install --frozen-lockfile`
-- Testes e scripts: `bun run <script>`
-- Empacotamento: `bun pack`
-- Publicação: `bun publish` (utiliza `NPM_TOKEN` para autenticação quando presente)
-
-Como testar a extensão após a instalação
-
-```bash
-# Habilitar a extensão instalada localmente
-gnome-extensions enable attack-shark-x11@llucasshenrique
-
-# Verificar logs do GNOME Shell em tempo real
-journalctl --user -f /usr/bin/gnome-shell
-```
-
-- Abra o menu de status (system status area) e verifique se o ícone/label de bateria do dongle aparece.
-- Teste ajustes de DPI e polling via interface da extensão e confirme mudanças no dispositivo.
-
-Notas sobre permissões e segurança
-
-- A CLI evita rodar como root; o design pressupõe acesso ao dispositivo via regras udev para não exigir sudo.
-- As regras udev permitem acesso sem sudo para o usuário (MODE/GRUPO configurados no arquivo de regras).
-- Erros de permissão geram resposta JSON no formato:
-
-```json
-{"error":"Permission denied"}
-```
-
-Links e referências rápidas
-
-- Regras udev: [`cli/udev/99-attack-shark.rules`](cli/udev/99-attack-shark.rules:1)
-- Documentação udev para este projeto: [`cli/udev/README.md`](cli/udev/README.md:1)
-- Script de instalação: [`install.sh`](install.sh:1)
+- Driver da comunidade utilizado pelo projeto: [`HarukaYamamoto0/attack-shark-x11-driver`](https://github.com/HarukaYamamoto0/attack-shark-x11-driver)
+- Regras udev: [`cli/udev/99-attack-shark.rules`](cli/udev/99-attack-shark.rules)
+- Documentacao udev: [`cli/udev/README.md`](cli/udev/README.md)
+- Instalador da extensao empacotada: [`scripts/install-extension.sh`](scripts/install-extension.sh)
