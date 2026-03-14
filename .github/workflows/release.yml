@@ -57,13 +57,6 @@ jobs:
           zip -r attack-shark-extension-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip extension
           ls -la *.zip
 
-      - name: Authenticate GitHub CLI
-        run: |
-          echo "Authenticating gh..."
-          echo "$GITHUB_TOKEN" | gh auth login --with-token
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload extension ZIP via gh
         run: |
           TAG=${{ github.event.release.tag_name || github.ref_name || github.event.inputs.tag }}
