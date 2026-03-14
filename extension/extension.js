@@ -202,7 +202,7 @@ export default class AttackSharkExtension extends Extension {
 
         if (!argv) {
             this._cliRunning = false;
-            Main.notify('AttackSharkX11', 'CLI not found. Reinstall with "bun run package" or ensure bun is available for development mode.');
+            Main.notify('AttackSharkX11', 'CLI not found. Install AttackSharkX11 CLI see https://github.com/llucasshenrique/attack-shark-tools.');
             return;
         }
 
