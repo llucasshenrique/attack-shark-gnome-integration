@@ -237,8 +237,12 @@ export default class AttackSharkExtension extends Extension {
     }
 
     _resolveCliArgv(args) {
+        const systemCliPath = '/usr/bin/attack-shark-cli';
         const compiledCliPath = `${this.path}/attack-shark-cli`;
         const devCliPath = `${this.path}/cli/index.ts`;
+
+        if (GLib.file_test(systemCliPath, GLib.FileTest.IS_EXECUTABLE))
+            return [systemCliPath, ...args];
 
         if (GLib.file_test(compiledCliPath, GLib.FileTest.IS_EXECUTABLE))
             return [compiledCliPath, ...args];

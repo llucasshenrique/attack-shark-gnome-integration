@@ -1,4 +1,4 @@
-import type { StageIndex } from 'attack-shark-x11-driver/src';
+export type StageIndex = 1 | 2 | 3 | 4 | 5 | 6;
 
 export const parseDpiInputToStage = (input: string): StageIndex | null => {
   const value = Number.parseInt(input, 10);

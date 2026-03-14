@@ -20,6 +20,33 @@ Recomendado (script):
 ./install.sh
 ```
 
+Pacotes Linux (.deb e .rpm)
+
+Esta etapa prepara a separação entre extensão e CLI. A CLI pode ser empacotada de forma independente em `.deb` e `.rpm`.
+
+Gerar pacotes:
+
+```bash
+bun run package:linux
+```
+
+Saída esperada:
+
+- `dist/packages/*.deb`
+- `dist/packages/*.rpm`
+
+Testar instalação em containers (Debian 12, Ubuntu 22.04/24.04, Fedora 41, UBI 9):
+
+```bash
+bun run test:packages:containers
+```
+
+Notas:
+
+- O empacotamento usa `nfpm` (local, se instalado) com fallback para `ghcr.io/goreleaser/nfpm` via Docker.
+- O pacote instala o binário em `/usr/bin/attack-shark-cli` e a regra udev em `/etc/udev/rules.d/99-attack-shark.rules`.
+- O startup da CLI empacotada foi estabilizado para ambientes limpos (sem crash em `attack-shark-cli` sem argumentos); comandos que acessam dispositivo continuam dependendo do runtime nativo USB disponível no sistema.
+
 Fluxo empacotado (build + instalação da extensão local):
 
 ```bash

@@ -2,7 +2,7 @@ import { runBatteryCommand } from './commands/battery';
 import { runDpiCommand } from './commands/dpi';
 import { runPollingCommand } from './commands/polling';
 import { createDriver } from './core/driver';
-import { normalizeCommandError, normalizeOpenDriverError } from './output/errors';
+import { normalizeCommandError, normalizeDriverBootstrapError, normalizeOpenDriverError } from './output/errors';
 import { EXIT_CODES } from './output/exit-codes';
 import { bunStdoutWriter, writeJson } from './output/json';
 import type { CliRuntime } from './types/cli';
@@ -17,12 +17,12 @@ export async function runCli(args: string[], runtime: Pick<CliRuntime, 'write'> 
     return EXIT_CODES.NO_COMMAND;
   }
 
-  let driver: ReturnType<typeof createDriver>;
+  let driver: Awaited<ReturnType<typeof createDriver>>;
 
   try {
-    driver = createDriver();
-  } catch {
-    writeJson({ error: 'Device not connected' }, runtime.write);
+    driver = await createDriver();
+  } catch (error) {
+    writeJson({ error: normalizeDriverBootstrapError(error) }, runtime.write);
     return EXIT_CODES.DEVICE_NOT_CONNECTED;
   }
 

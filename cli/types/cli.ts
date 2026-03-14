@@ -1,6 +1,12 @@
-import type { AttackSharkX11 } from 'attack-shark-x11-driver/src';
-
 export type CliCommand = 'battery' | 'dpi' | 'polling';
+
+export type DriverHandle = {
+  open: () => Promise<void>;
+  close?: () => Promise<void> | void;
+  getBatteryLevel?: (timeoutMs?: number) => Promise<number>;
+  setDpi: (dpiBuilder: unknown) => Promise<void>;
+  setPollingRate: (rate: unknown) => Promise<void>;
+};
 
 export type CliRuntime = {
   argv: string[];
@@ -8,7 +14,7 @@ export type CliRuntime = {
 };
 
 export type CliContext = {
-  driver: InstanceType<typeof AttackSharkX11>;
+  driver: DriverHandle;
   args: string[];
   write: (line: string) => void;
 };

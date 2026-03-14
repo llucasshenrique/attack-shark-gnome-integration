@@ -56,6 +56,12 @@ jobs:
           bun run copy-cli || true
           ls -la dist || true
 
+      - name: Build Linux packages (DEB/RPM)
+        run: |
+          sh ./scripts/package-deb.sh
+          sh ./scripts/package-rpm.sh
+          ls -la dist/packages || true
+
       - name: Prepare and zip release artifacts
         run: |
           set -euo pipefail
@@ -159,8 +165,10 @@ jobs:
           TAG=${{ github.event.release.tag_name || github.ref_name || github.event.inputs.tag }}
           EXT_ASSET=./dist/attack-shark-extension-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip
           CLI_ASSET=./dist/attack-shark-cli-${{ github.ref_name || github.event.inputs.tag || 'release' }}.zip
+          DEB_ASSET=$(ls -1 ./dist/packages/*.deb | head -n1)
+          RPM_ASSET=$(ls -1 ./dist/packages/*.rpm | head -n1)
 
-          echo "Preparing upload for $EXT_ASSET and $CLI_ASSET to release $TAG"
+          echo "Preparing upload for $EXT_ASSET, $CLI_ASSET, $DEB_ASSET and $RPM_ASSET to release $TAG"
 
           mapfile -t EXISTING_ASSETS < <(gh release view "$TAG" --json assets --jq '.assets[].name' || true)
 
@@ -195,5 +203,7 @@ jobs:
 
           upload_with_retry "$EXT_ASSET"
           upload_with_retry "$CLI_ASSET"
+          upload_with_retry "$DEB_ASSET"
+          upload_with_retry "$RPM_ASSET"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

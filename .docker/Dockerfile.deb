@@ -1,0 +1,11 @@
+ARG BASE_IMAGE=debian:12
+FROM ${BASE_IMAGE}
+
+SHELL ["/bin/sh", "-lc"]
+WORKDIR /work
+
+COPY scripts/test-install-deb.sh /usr/local/bin/test-install-deb.sh
+COPY dist/packages/*.deb /work/
+
+RUN chmod +x /usr/local/bin/test-install-deb.sh && \
+    /usr/local/bin/test-install-deb.sh /work/*.deb

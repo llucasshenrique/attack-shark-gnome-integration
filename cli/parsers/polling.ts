@@ -1,12 +1,11 @@
-import { Rate } from 'attack-shark-x11-driver/src';
+export type PollingRateInput = 125 | 250 | 500 | 1000;
 
-export const parsePollingRate = (input: string): typeof Rate[keyof typeof Rate] | null => {
+export const parsePollingRate = (input: string): PollingRateInput | null => {
   const value = Number.parseInt(input, 10);
 
-  if (value === 125) return Rate.powerSaving;
-  if (value === 250) return Rate.office;
-  if (value === 500) return Rate.gaming;
-  if (value === 1000) return Rate.eSports;
+  if (value === 125 || value === 250 || value === 500 || value === 1000) {
+    return value;
+  }
 
   return null;
 };

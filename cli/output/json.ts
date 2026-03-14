@@ -1,7 +1,7 @@
 export type JsonWriter = (line: string) => void;
 
 export const bunStdoutWriter: JsonWriter = (line) => {
-  Bun.stdout.write(line);
+  process.stdout.write(line);
 };
 
 export const writeJson = (obj: unknown, writer: JsonWriter = bunStdoutWriter): void => {

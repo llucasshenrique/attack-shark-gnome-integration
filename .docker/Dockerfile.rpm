@@ -1,0 +1,11 @@
+ARG BASE_IMAGE=fedora:41
+FROM ${BASE_IMAGE}
+
+SHELL ["/bin/sh", "-lc"]
+WORKDIR /work
+
+COPY scripts/test-install-rpm.sh /usr/local/bin/test-install-rpm.sh
+COPY dist/packages/*.rpm /work/
+
+RUN chmod +x /usr/local/bin/test-install-rpm.sh && \
+    /usr/local/bin/test-install-rpm.sh /work/*.rpm

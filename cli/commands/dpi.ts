@@ -1,4 +1,3 @@
-import { DpiBuilder } from 'attack-shark-x11-driver/src';
 import { parseDpiInputToStage } from '../parsers/dpi';
 import { writeJson } from '../output/json';
 import { EXIT_CODES } from '../output/exit-codes';
@@ -17,6 +16,7 @@ export const runDpiCommand = async ({ driver, args, write }: CliContext): Promis
     return { code: EXIT_CODES.INVALID_ARGS };
   }
 
+  const { DpiBuilder } = await import('attack-shark-x11-driver/src');
   const dpiBuilder = new DpiBuilder({ activeStage: stage });
   await driver.setDpi(dpiBuilder);
   writeJson({ ok: true }, write);

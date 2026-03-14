@@ -1,0 +1,24 @@
+name: attack-shark-cli
+arch: amd64
+platform: linux
+version: "0.1.3"
+section: utils
+priority: optional
+maintainer: llucasshenrique
+description: CLI for Attack Shark X11 GNOME integration
+homepage: https://github.com/llucasshenrique/attack-shark-gnome-integration
+license: MIT
+
+contents:
+  - src: ./dist/attack-shark-cli
+    dst: /usr/bin/attack-shark-cli
+    file_info:
+      mode: 0755
+  - src: ./cli/udev/99-attack-shark.rules
+    dst: /etc/udev/rules.d/99-attack-shark.rules
+    type: config|noreplace
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: ./scripts/nfpm-postinstall.sh
